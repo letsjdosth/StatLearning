@@ -46,8 +46,8 @@ lines(lm_ns2_fit_pred[,1]~pred_df_age$age, col="blue")
 lines(lm_ns2_fit_pred[,2]~pred_df_age$age)
 lines(lm_ns2_fit_pred[,3]~pred_df_age$age)
 
-lm_ns4_fit_pred2 = predict(lm3_fit, pred_df_age2, interval="prediction")
-print(lm_ns4_fit_pred2)
+lm_ns2_fit_pred2 = predict(lm3_fit, pred_df_age2, interval="prediction")
+print(lm_ns2_fit_pred2)
 
 # using gcv, cubic spline fit
 candid_knot_num = 2:20
@@ -63,16 +63,16 @@ for(i in 1:length(candid_knot_num)){
 
 (knot_num = candid_knot_num[which.min(gcv_for_candid_knot_num)]) #20
 knot_position = (125-95)/(knot_num+2)*1:knot_num+95
-lm_ns4_fit = lm(strontium.ratio ~ ns(age, knots=knot_position), data=fossil)
-summary(lm_ns4_fit)
+lm_ns20_fit = lm(strontium.ratio ~ ns(age, knots=knot_position), data=fossil)
+summary(lm_ns20_fit)
 plot(strontium.ratio ~ age, data=fossil)
-lm_ns4_fit_pred = predict(lm_ns4_fit, pred_df_age, interval="prediction")
-lines(lm_ns4_fit_pred[,1]~pred_df_age$age, col="blue")
-lines(lm_ns4_fit_pred[,2]~pred_df_age$age)
-lines(lm_ns4_fit_pred[,3]~pred_df_age$age)
+lm_ns20_fit_pred = predict(lm_ns20_fit, pred_df_age, interval="prediction")
+lines(lm_ns20_fit_pred[,1]~pred_df_age$age, col="blue")
+lines(lm_ns20_fit_pred[,2]~pred_df_age$age)
+lines(lm_ns20_fit_pred[,3]~pred_df_age$age)
 
-lm_ns4_fit_pred2 = predict(lm3_fit, pred_df_age2, interval="prediction")
-print(lm_ns4_fit_pred2)
+lm_ns20_fit_pred2 = predict(lm3_fit, pred_df_age2, interval="prediction")
+print(lm_ns20_fit_pred2)
 
 
 

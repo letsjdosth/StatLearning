@@ -57,22 +57,22 @@ for(i in 1:length(candid_knot_num)){
     knot_position = (125-95)/(knot_num+2)*1:knot_num+95
     lm_ns_fit = lm(strontium.ratio ~ ns(age, knots=knot_position), data=fossil)
     res = sum(lm_ns_fit$residuals^2)
-    trS = sum(lm.influence(lm_ns4_fit)$hat)
+    trS = sum(lm.influence(lm_ns_fit)$hat)
     gcv_for_candid_knot_num[i] = res/(1-trS/length(fossil$age))
 }
 
-(knot_num = candid_knot_num[which.min(gcv_for_candid_knot_num)]) #20
+(knot_num = candid_knot_num[which.min(gcv_for_candid_knot_num)]) #15
 knot_position = (125-95)/(knot_num+2)*1:knot_num+95
-lm_ns20_fit = lm(strontium.ratio ~ ns(age, knots=knot_position), data=fossil)
-summary(lm_ns20_fit)
+lm_ns15_fit = lm(strontium.ratio ~ ns(age, knots=knot_position), data=fossil)
+summary(lm_ns15_fit)
 plot(strontium.ratio ~ age, data=fossil)
-lm_ns20_fit_pred = predict(lm_ns20_fit, pred_df_age, interval="prediction")
-lines(lm_ns20_fit_pred[,1]~pred_df_age$age, col="blue")
-lines(lm_ns20_fit_pred[,2]~pred_df_age$age)
-lines(lm_ns20_fit_pred[,3]~pred_df_age$age)
+lm_ns15_fit_pred = predict(lm_ns15_fit, pred_df_age, interval="prediction")
+lines(lm_ns15_fit_pred[,1]~pred_df_age$age, col="blue")
+lines(lm_ns15_fit_pred[,2]~pred_df_age$age)
+lines(lm_ns15_fit_pred[,3]~pred_df_age$age)
 
-lm_ns20_fit_pred2 = predict(lm3_fit, pred_df_age2, interval="prediction")
-print(lm_ns20_fit_pred2)
+lm_ns15_fit_pred2 = predict(lm_ns15_fit, pred_df_age2, interval="prediction")
+print(lm_ns15_fit_pred2)
 
 
 
@@ -116,7 +116,7 @@ for(i in 1:length(candid_span)){
     GCV = sum(loess_fit$residuals^2) / (N -loess_fit$trace.hat)
     gcv_for_candid_span[i] = GCV
 }
-candid_span[which.min(gcv_for_candid_span)]
+(candid_span[which.min(gcv_for_candid_span)])
 #but span=0.04 gives error
 
 loess_fit = loess(strontium.ratio ~ age, data=fossil, span=candid_span[which.min(gcv_for_candid_span)])

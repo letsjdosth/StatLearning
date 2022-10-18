@@ -1,0 +1,217 @@
+# HW1
+
+Seokjun Choi
+
+## problem 5
+
+*stand-alone R script: https://github.com/letsjdosth/StatLearning/blob/main/hw1p5.r*
+
+### Discussion (in the head!)
+
+The motivation of GCV is to mimic the LOOCV in the ordinary linear regression setting with a shrinkage penalty.
+When $S_\lambda$ is a linear smoother of response, $tr(S_\lambda)$ can be viewed as the 'effective' degress of freedom of the linear smoother,
+in the sense that the trace value will be smaller as the smoothing strength parameter $\lambda$ grows.
+Note that if $\lambda=0$, $tr(S_0)$ is the exactly same as the model's degrees of freedom in the ordinary sense.
+
+In general, GCV and CV are not exactly the same.
+Comparing properties of GCV with LOOCV, GCV is more robust. 
+By using the trace value instead, GCV is less sensitive to each diagonal value of $S_\lambda$, which is badly bahaving at influence points. 
+Plus, GCV have good invariance property with respect to orthogonal transformation of data (for example, rotating), while LOOCV does not.
+(In detail, see Wakefield, J. (2013). Bayesian and frequentist regression methods, chapter 10)
+These features justify to use GCV rather than LOOCV when our model's smoother is a linear operator.
+
+Interestingly, the asymptotic properties of GCV and LOOCV in a linear regression setting are the same. (For example, see Shao, J. (1997).)
+Actually, both behave like AIC in the limit.
+So with large samples, we can expect that methods depending on GCV and LOOCV will give similar results.
+
+Obviously, GCV calculation is much simpler than LOOCV.
+Even if LOOCV has a nice formula in linear smoother cases, it needs the exact 'hat' matrix (smoothing matrix).
+But for some models above, getting the matrix requires a quite annoying computing, but getting trace value of the matrix is still relatively easy.
+
+**Thus, since we have large enough sample size(=106) in this problem, let me skip a procedure using LOOCV and enjoy the simple calculation and better properties of GCV.** :D
+
+
+Let's start!
+To begin with, let me load packages and data.
+
+```{r, message=FALSE, warning=FALSE}
+library(SemiPar)
+library(splines)
+library(gam)
+library(mgcv)
+
+data(fossil)
+head(fossil)
+plot(strontium.ratio ~ age, data=fossil)
+```
+
+We can see a non-linear relationship.
+
+### 5-a. Polinomial regression fit
+
+Let's try four polynomial orders.
+In the plot, the black line is the first-order fit. Additionally, blue, red, and green curves are 2nd, 3rd, and 4th order fit, respectively.
+
+```{r}
+#polynomial regression
+lm1_fit = lm(strontium.ratio ~ age, data=fossil)
+lm2_fit = lm(strontium.ratio ~ age+ I(age^2), data=fossil)
+lm3_fit = lm(strontium.ratio ~ age + I(age^2) + I(age^3), data=fossil)
+lm4_fit = lm(strontium.ratio ~ age + I(age^2) + I(age^3) + I(age^4), data=fossil)
+```
+
+```{r, echo=FALSE}
+plot(strontium.ratio ~ age, data=fossil)
+curve(coef(lm1_fit)[1]+coef(lm1_fit)[2]*x, col="black", add=TRUE)
+curve(coef(lm2_fit)[1]+coef(lm2_fit)[2]*x+coef(lm2_fit)[3]*x^2, col="blue", add=TRUE)
+curve(coef(lm3_fit)[1]+coef(lm3_fit)[2]*x+coef(lm3_fit)[3]*x^2+coef(lm3_fit)[4]*x^3, col="red", add=TRUE)
+curve(coef(lm4_fit)[1]+coef(lm4_fit)[2]*x+coef(lm4_fit)[3]*x^2+coef(lm4_fit)[4]*x^3+coef(lm4_fit)[5]*x^4, col="green", add=TRUE)
+```
+
+The first-order and the second order fits seem too crude.
+The third-order and the fourth order fits are good.
+Generally, the simpler model is preferred if two model's performances are comparable.
+Thus, I will choose the order-3 polynomial.
+
+```{r, echo=FALSE}
+#order 3
+pred_df_age = data.frame(age=90:125)
+lm3_fit_pred = predict(lm3_fit, pred_df_age, interval="prediction")
+plot(strontium.ratio ~ age, data=fossil)
+lines(lm3_fit_pred[,1]~pred_df_age$age, col="blue")
+lines(lm3_fit_pred[,2]~pred_df_age$age)
+lines(lm3_fit_pred[,3]~pred_df_age$age)
+```
+```{r}
+pred_df_age2 = data.frame(age=c(95, 115))
+lm3_fit_pred2 = predict(lm3_fit, pred_df_age2, interval="prediction")
+print(lm3_fit_pred2)
+```
+
+The above plot shows fitted curve and its 95% interval.
+Last part's dataframe output is for prediction interval at $x=95$, and $x=115$.
+
+### 5-b. Cubic spline fit
+
+To choose the number of knots $K$, let me use GCV.
+
+```{r}
+# cubic spline fit (without smoothing penalty)
+# using gcv, cubic spline fit
+candid_knot_num = 2:20
+gcv_for_candid_knot_num = rep(0, length(candid_knot_num))
+for(i in 1:length(candid_knot_num)){
+    knot_num = candid_knot_num[i]
+    knot_position = (125-95)/(knot_num+2)*1:knot_num+95
+    lm_ns_fit = lm(strontium.ratio ~ ns(age, knots=knot_position), data=fossil)
+    res = sum(lm_ns_fit$residuals^2)
+    trS = sum(lm.influence(lm_ns_fit)$hat)
+    gcv_for_candid_knot_num[i] = res/(1-trS/length(fossil$age))
+}
+
+(knot_num = candid_knot_num[which.min(gcv_for_candid_knot_num)]) #15
+```
+
+Among equally-spaced 2, 3, ..., and 20 knots, 15 knots gave us the least GCV value.
+Thus, let's proceed with $K=15$.
+
+```{r}
+knot_position = (125-95)/(knot_num+2)*1:knot_num+95
+lm_ns15_fit = lm(strontium.ratio ~ ns(age, knots=knot_position), data=fossil)
+```
+```{r, echo=FALSE}
+# summary(lm_ns15_fit)
+plot(strontium.ratio ~ age, data=fossil)
+lm_ns15_fit_pred = predict(lm_ns15_fit, pred_df_age, interval="prediction")
+lines(lm_ns15_fit_pred[,1]~pred_df_age$age, col="blue")
+lines(lm_ns15_fit_pred[,2]~pred_df_age$age)
+lines(lm_ns15_fit_pred[,3]~pred_df_age$age)
+```
+```{r}
+lm_ns15_fit_pred2 = predict(lm_ns15_fit, pred_df_age2, interval="prediction")
+print(lm_ns15_fit_pred2)
+```
+
+The above plot shows fitted curve and its 95% interval using the 15 knots.
+Last part's dataframe output is for prediction interval at $x=95$, and $x=115$.
+
+### 5-c. Smoothing spline fit
+
+Here, I will use 'mgcv' package. The 'gam' function seems that it automatically choose the number of spline using GCV.
+The argument 'bs="cr"' indicates the smoothing spline fitting.
+
+```{r}
+# smoothing spline
+ss_gam_fit = gam(strontium.ratio~s(age, bs="cr"), data=fossil)
+ss_gam_fit
+```
+
+```{r, echo=FALSE}
+ss_gam_fit_pred = predict(ss_gam_fit, pred_df_age, interval="prediction", se.fit=TRUE)
+# ss_gam_fit_pred
+# ?predict.gam
+plot(strontium.ratio ~ age, data=fossil)
+lines(ss_gam_fit_pred$fit~pred_df_age$age, col="blue")
+lines(ss_gam_fit_pred$fit + 1.96*ss_gam_fit_pred$se.fit ~ pred_df_age$age)
+lines(ss_gam_fit_pred$fit - 1.96*ss_gam_fit_pred$se.fit ~ pred_df_age$age)
+```
+```{r}
+ss_gam_fit_pred2 = predict(ss_gam_fit, pred_df_age2, interval="prediction", se.fit=TRUE)
+ss_gam_fit_pred2 
+data.frame(fit=ss_gam_fit_pred2$fit,
+            lwr=ss_gam_fit_pred2$fit - 1.96*ss_gam_fit_pred2$se.fit,
+            uwr=ss_gam_fit_pred2$fit + 1.96*ss_gam_fit_pred2$se.fit)
+```
+
+The above plot shows fitted curve and its 95% interval.
+If applying 1.96 as the 95% prediction intervals' z value relying on asymptotic normality,
+the prediction interval looks too narrow.
+Perhaps there is a better distribution to use, but let me skip to explore it here.
+
+Last part's dataframe output is for prediction interval at $x=95$, and $x=115$.
+We can expect that the interval lengths would be underestimated as well.
+
+### 5-d. A local regression fit
+
+Again, using GCV, the 'span' argument (smoothing parameter) in 'loess' function will be selected.
+I will consider the value from 0.1 to 2.
+
+```{r}
+#using gcv, loess
+candid_span = seq(0.1, 2, 0.01)
+gcv_for_candid_span = rep(0, length(candid_span))
+for(i in 1:length(candid_span)){
+    N = length(fossil$age)
+    loess_fit = loess(strontium.ratio ~ age, data=fossil, span=candid_span[i])
+    GCV = sum(loess_fit$residuals^2) / (N -loess_fit$trace.hat)
+    gcv_for_candid_span[i] = GCV
+}
+(candid_span[which.min(gcv_for_candid_span)])
+```
+
+0.14 gave the least GCV. Using the value, let me fit the model.
+
+```{r}
+loess_fit = loess(strontium.ratio ~ age, data=fossil, span=candid_span[which.min(gcv_for_candid_span)])
+```
+```{r, echo=FALSE}
+loess_fit_pred = predict(loess_fit, pred_df_age, interval="prediction", se=TRUE)
+plot(strontium.ratio ~ age, data=fossil)
+lines(loess_fit_pred$fit~pred_df_age$age, col="blue")
+lines(loess_fit_pred$fit + qt(0.975, loess_fit_pred$df)*loess_fit_pred$se.fit ~ pred_df_age$age)
+lines(loess_fit_pred$fit - qt(0.975, loess_fit_pred$df)*loess_fit_pred$se.fit ~ pred_df_age$age) 
+```
+```{r}
+loess_fit_pred2 = predict(loess_fit, pred_df_age2, interval="prediction", se=TRUE)
+loess_fit_pred2
+data.frame(fit=loess_fit_pred2$fit,
+            lwr=loess_fit_pred2$fit - 1.96*loess_fit_pred2$se.fit,
+            uwr=loess_fit_pred2$fit + 1.96*loess_fit_pred2$se.fit)
+```
+
+Near 95 and near 97, this model looks overfitted.
+Stronger smoothing may help to remedy it.
+But in the other area, the fitting result and its prediction interval look good.
+
+Last part's dataframe output is for prediction interval at $x=95$, and $x=115$.
+Again, it seems dangerous to believe the the result at $x=95$, though.

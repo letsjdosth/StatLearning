@@ -106,7 +106,7 @@ for(i in 1:length(candid_knot_num)){
     lm_ns_fit = lm(strontium.ratio ~ ns(age, knots=knot_position), data=fossil)
     res = sum(lm_ns_fit$residuals^2)
     trS = sum(lm.influence(lm_ns_fit)$hat)
-    gcv_for_candid_knot_num[i] = res/(1-trS/length(fossil$age))
+    gcv_for_candid_knot_num[i] = res/(1-trS/length(fossil$age))^2
 }
 
 (knot_num = candid_knot_num[which.min(gcv_for_candid_knot_num)]) #15
@@ -183,13 +183,13 @@ gcv_for_candid_span = rep(0, length(candid_span))
 for(i in 1:length(candid_span)){
     N = length(fossil$age)
     loess_fit = loess(strontium.ratio ~ age, data=fossil, span=candid_span[i])
-    GCV = sum(loess_fit$residuals^2) / (N -loess_fit$trace.hat)
+    GCV = sum(loess_fit$residuals^2) / (1 -loess_fit$trace.hat/N)^2
     gcv_for_candid_span[i] = GCV
 }
 (candid_span[which.min(gcv_for_candid_span)])
 ```
 
-0.14 gave the least GCV. Using the value, let me fit the model.
+0.24 gave the least GCV. Using the value, let me fit the model.
 
 ```{r}
 loess_fit = loess(strontium.ratio ~ age, data=fossil, span=candid_span[which.min(gcv_for_candid_span)])
@@ -209,9 +209,7 @@ data.frame(fit=loess_fit_pred2$fit,
             uwr=loess_fit_pred2$fit + 1.96*loess_fit_pred2$se.fit)
 ```
 
-Near 95 and near 97, this model looks overfitted.
-Stronger smoothing may help to remedy it.
-But in the other area, the fitting result and its prediction interval look good.
+Near 95, the interval seems a little broad, cause there are only a few data points in the neighborhood.
+But, the mean (point) estimation looks good.
 
 Last part's dataframe output is for prediction interval at $x=95$, and $x=115$.
-Again, it seems dangerous to believe the the result at $x=95$, though.

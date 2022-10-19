@@ -9,6 +9,7 @@ data(fossil)
 head(fossil)
 plot(strontium.ratio ~ age, data=fossil)
 
+#========================================================================
 #polynomial regression
 lm1_fit = lm(strontium.ratio ~ age, data=fossil)
 lm2_fit = lm(strontium.ratio ~ age+ I(age^2), data=fossil)
@@ -34,8 +35,8 @@ pred_df_age2 = data.frame(age=c(95, 115))
 lm3_fit_pred2 = predict(lm3_fit, pred_df_age2, interval="prediction")
 print(lm3_fit_pred2)
 
-
-# cubic spline fit (without smoothing penalty)
+#========================================================================
+# cubic spline fit
 knot_num = 2 #using my eye
 knot_position = (125-95)/(knot_num+2)*1:knot_num+95
 lm_ns2_fit = lm(strontium.ratio ~ ns(age, knots=knot_position), data=fossil)
@@ -49,38 +50,76 @@ lines(lm_ns2_fit_pred[,3]~pred_df_age$age)
 lm_ns2_fit_pred2 = predict(lm3_fit, pred_df_age2, interval="prediction")
 print(lm_ns2_fit_pred2)
 
-# using gcv, cubic spline fit
+names(lm_ns2_fit) # all properties
+class(lm_ns2_fit) #class name
+showMethods(class="lm") #for S4
+methods(class="lm") #for S3
+lm_ns2_X = model.matrix(lm_ns2_fit)
+lm_ns2_smoother = lm_ns2_X %*% solve(t(lm_ns2_X)%*%lm_ns2_X) %*% t(lm_ns2_X)
+lm_ns2_smoother_diag = diag(lm_ns2_smoother)
+
+# using loocv & GCV
 candid_knot_num = 2:20
+loocv_for_candid_knot_num = rep(0, length(candid_knot_num))
 gcv_for_candid_knot_num = rep(0, length(candid_knot_num))
 for(i in 1:length(candid_knot_num)){
     knot_num = candid_knot_num[i]
     knot_position = (125-95)/(knot_num+2)*1:knot_num+95
     lm_ns_fit = lm(strontium.ratio ~ ns(age, knots=knot_position), data=fossil)
-    res = sum(lm_ns_fit$residuals^2)
-    trS = sum(lm.influence(lm_ns_fit)$hat)
-    gcv_for_candid_knot_num[i] = res/(1-trS/length(fossil$age))^2
+
+    lm_ns_X = model.matrix(lm_ns_fit)
+    lm_ns_smoother = lm_ns_X %*% solve(t(lm_ns_X)%*%lm_ns_X) %*% t(lm_ns_X)
+    lm_ns_smoother_diag = diag(lm_ns_smoother)
+    lm_ns_smoother_trace = sum(lm_ns_smoother_diag)
+
+    lm_ns_loocv = 0
+    for(j in 1:length(lm_ns_smoother_diag)){
+        lm_ns_loocv = lm_ns_loocv + (lm_ns2_fit$residuals[j]/(1 - lm_ns_smoother_diag[j]))^2
+    }
+    lm_ns_gcv = sum(lm_ns2_fit$residuals^2) / (1 - lm_ns_smoother_trace/length(lm_ns_smoother_diag))^2
+    loocv_for_candid_knot_num[i] = lm_ns_loocv/length(lm_ns_smoother_diag)
+    gcv_for_candid_knot_num[i] = lm_ns_gcv/length(lm_ns_smoother_diag)
 }
 
-(knot_num = candid_knot_num[which.min(gcv_for_candid_knot_num)]) #15
+(candid_knot_num[which.min(loocv_for_candid_knot_num)]) #2
+(candid_knot_num[which.min(gcv_for_candid_knot_num)]) #2
+
+(knot_num = candid_knot_num[which.min(gcv_for_candid_knot_num)])
 knot_position = (125-95)/(knot_num+2)*1:knot_num+95
-lm_ns15_fit = lm(strontium.ratio ~ ns(age, knots=knot_position), data=fossil)
-summary(lm_ns15_fit)
+lm_ns_cvknot_fit = lm(strontium.ratio ~ ns(age, knots=knot_position), data=fossil)
+summary(lm_ns_cvknot_fit)
 plot(strontium.ratio ~ age, data=fossil)
-lm_ns15_fit_pred = predict(lm_ns15_fit, pred_df_age, interval="prediction")
-lines(lm_ns15_fit_pred[,1]~pred_df_age$age, col="blue")
-lines(lm_ns15_fit_pred[,2]~pred_df_age$age)
-lines(lm_ns15_fit_pred[,3]~pred_df_age$age)
+lm_ns_cvknot_fit_pred = predict(lm_ns_cvknot_fit, pred_df_age, interval="prediction")
+lines(lm_ns_cvknot_fit_pred[,1]~pred_df_age$age, col="blue")
+lines(lm_ns_cvknot_fit_pred[,2]~pred_df_age$age)
+lines(lm_ns_cvknot_fit_pred[,3]~pred_df_age$age)
 
-lm_ns15_fit_pred2 = predict(lm_ns15_fit, pred_df_age2, interval="prediction")
-print(lm_ns15_fit_pred2)
-
-
+lm_ns_cvknot_fit_pred2 = predict(lm_ns_cvknot_fit, pred_df_age2, interval="prediction")
+print(lm_ns_cvknot_fit_pred2)
 
 
+# using gcv, cubic spline fit
+# candid_knot_num = 2:20
+# gcv_for_candid_knot_num = rep(0, length(candid_knot_num))
+# for(i in 1:length(candid_knot_num)){
+#     knot_num = candid_knot_num[i]
+#     knot_position = (125-95)/(knot_num+2)*1:knot_num+95
+#     lm_ns_fit = lm(strontium.ratio ~ ns(age, knots=knot_position), data=fossil)
+#     res = sum(lm_ns_fit$residuals^2)
+#     trS = sum(lm.influence(lm_ns_fit)$hat)
+#     gcv_for_candid_knot_num[i] = res/(1-trS/length(fossil$age))^2
+# }
 
+
+#========================================================================
 # smoothing spline
+#using gam
+
 ss_gam_fit = gam(strontium.ratio~s(age, bs="cr"), data=fossil)
-ss_gam_fit #automatically use gcv?
+print(ss_gam_fit) #automatically use gcv. #k=10
+print(gam(strontium.ratio~s(age, bs="cr", k=10), data=fossil))
+?gam
+?s
 
 ss_gam_fit_pred = predict(ss_gam_fit, pred_df_age, interval="prediction", se.fit=TRUE)
 # ss_gam_fit_pred
@@ -95,11 +134,45 @@ ss_gam_fit_pred2
 data.frame(fit=ss_gam_fit_pred2$fit,
             lwr=ss_gam_fit_pred2$fit - 1.96*ss_gam_fit_pred2$se.fit,
             uwr=ss_gam_fit_pred2$fit + 1.96*ss_gam_fit_pred2$se.fit)
-#right? need to check
 
 
+names(ss_gam_fit) # all properties
+class(ss_gam_fit) #class name
+showMethods(class="gam") #for S4
+methods(class="gam") #for S3
+
+
+
+## using smooth.spline
+ss_fit_loocv = smooth.spline(fossil$age, fossil$strontium.ratio, nknots=candid_df[i], cv=TRUE)
+?smooth.spline
+print(ss_fit_loocv)
+class(ss_fit_loocv)
+names(ss_fit_loocv)
+methods(class="smooth.spline")
+showMethods(class="smooth.spline")
+# ss_fit_loocv$cv.crit
+sum(ss_fit_loocv$lev) #eff number of parameters
+
+ss_fit_loocv_pred = predict(ss_fit_loocv, pred_df_age, interval="prediction", se=TRUE)
+ss_fit_loocv_pred$y[,1]
+ss_fit_gcv = smooth.spline(fossil$age, fossil$strontium.ratio, nknots=candid_df[i], cv=FALSE)
+print(ss_fit_gcv)
+ss_fit_gcv_pred = predict(ss_fit_gcv, pred_df_age, interval="prediction", se=TRUE)
+
+plot(strontium.ratio ~ age, data=fossil)
+lines(ss_fit_loocv_pred$y[,1] ~ ss_fit_loocv_pred$x[,1], col="blue")
+lines(ss_fit_gcv_pred$y[,1] ~ ss_fit_gcv_pred$x[,1], col="red")
+#exactly the same.
+
+
+#========================================================================
 # local regression
 loess_fit75 = loess(strontium.ratio ~ age, data=fossil, span=0.75) #chosen by my hands
+class(loess_fit75)
+methods(class="loess")
+names(loess_fit75)
+
 loess_fit75_pred = predict(loess_fit75, pred_df_age, interval="prediction", se=TRUE)
 loess_fit75_pred
 plot(strontium.ratio ~ age, data=fossil)
@@ -108,6 +181,7 @@ lines(loess_fit75_pred$fit + qt(0.975, loess_fit75_pred$df)*loess_fit75_pred$se.
 lines(loess_fit75_pred$fit - qt(0.975, loess_fit75_pred$df)*loess_fit75_pred$se.fit ~ pred_df_age$age) 
 
 #using gcv, loess
+#(no way to get the design matrix?)
 candid_span = seq(0.1, 2, 0.01)
 gcv_for_candid_span = rep(0, length(candid_span))
 for(i in 1:length(candid_span)){
@@ -117,7 +191,6 @@ for(i in 1:length(candid_span)){
     gcv_for_candid_span[i] = GCV
 }
 (candid_span[which.min(gcv_for_candid_span)])
-#but span=0.24 gives error
 
 loess_fit = loess(strontium.ratio ~ age, data=fossil, span=candid_span[which.min(gcv_for_candid_span)])
 loess_fit_pred = predict(loess_fit, pred_df_age, interval="prediction", se=TRUE)

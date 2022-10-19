@@ -20,14 +20,19 @@ grid <- data.frame(
 )
 ```
 
+Almost all over-median points are clustered at the left-bottom part.
+However, we can see that many over- and under-median points overlap in large area.
+
+
 ### 6-a. Support vector machine
+
+To fit SVM, we should pick the 'C' value in the largrangian formula, which tunes cost of constraints violation.
+I tried values from 1 to 13, and picked 6, which has the best prediction accuracy.
+
 ```{r, warning=FALSE}
 library(e1071)
 svm_fit = svm(MedianOver~., data=cut_calif, kernel="linear", scale=FALSE, cost=6)
 # ?svm
-#cost: picked from 1 to 13
-# cost of constraints violation (default: 1)
-# —it is the ‘C’-constant of the regularization term in the Lagrange formulation.
 ```
 ```{r, echo=FALSE}
 plot(svm_fit, cut_calif)

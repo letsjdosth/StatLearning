@@ -21,14 +21,12 @@ Plus, GCV have good invariance property with respect to orthogonal transformatio
 These features justify to use GCV rather than LOOCV when our model's smoother is a linear operator.
 
 Interestingly, the asymptotic properties of GCV and LOOCV in a linear regression setting are the same. (For example, see Shao, J. (1997).)
-Actually, both behave like AIC in the limit.
 So with large samples, we can expect that methods depending on GCV and LOOCV will give similar results.
 
 Obviously, GCV calculation is much simpler than LOOCV.
 Even if LOOCV has a nice formula in linear smoother cases, it needs the exact 'hat' matrix (smoothing matrix).
 But for some models above, getting the matrix requires a quite annoying computing, but getting trace value of the matrix is still relatively easy.
 
-**Thus, since we have large enough sample size(=106) in this problem, let me skip a procedure using LOOCV and enjoy the simple calculation and better properties of GCV.** :D
 
 
 Let's start!
@@ -93,43 +91,57 @@ Last part's dataframe output is for prediction interval at $x=95$, and $x=115$.
 
 ### 5-b. Cubic spline fit
 
-To choose the number of knots $K$, let me use GCV.
+To choose the number of knots $K$, let me use LOOCV and GCV.
 
 ```{r}
-# cubic spline fit (without smoothing penalty)
-# using gcv, cubic spline fit
+# using loocv & GCV
 candid_knot_num = 2:20
+loocv_for_candid_knot_num = rep(0, length(candid_knot_num))
 gcv_for_candid_knot_num = rep(0, length(candid_knot_num))
 for(i in 1:length(candid_knot_num)){
     knot_num = candid_knot_num[i]
     knot_position = (125-95)/(knot_num+2)*1:knot_num+95
     lm_ns_fit = lm(strontium.ratio ~ ns(age, knots=knot_position), data=fossil)
-    res = sum(lm_ns_fit$residuals^2)
-    trS = sum(lm.influence(lm_ns_fit)$hat)
-    gcv_for_candid_knot_num[i] = res/(1-trS/length(fossil$age))^2
+
+    lm_ns_X = model.matrix(lm_ns_fit)
+    lm_ns_smoother = lm_ns_X %*% solve(t(lm_ns_X)%*%lm_ns_X) %*% t(lm_ns_X)
+    lm_ns_smoother_diag = diag(lm_ns_smoother)
+    lm_ns_smoother_trace = sum(lm_ns_smoother_diag)
+
+    lm_ns_loocv = 0
+    for(j in 1:length(lm_ns_smoother_diag)){
+        lm_ns_loocv = lm_ns_loocv + (lm_ns_fit$residuals[j]/(1 - lm_ns_smoother_diag[j]))^2
+    }
+    lm_ns_gcv = sum(lm_ns_fit$residuals^2) / (1 - lm_ns_smoother_trace/length(lm_ns_smoother_diag))^2
+    loocv_for_candid_knot_num[i] = lm_ns_loocv/length(lm_ns_smoother_diag)
+    gcv_for_candid_knot_num[i] = lm_ns_gcv/length(lm_ns_smoother_diag)
 }
 
-(knot_num = candid_knot_num[which.min(gcv_for_candid_knot_num)]) #15
+(candid_knot_num[which.min(loocv_for_candid_knot_num)]) #15
+(candid_knot_num[which.min(gcv_for_candid_knot_num)]) #15
 ```
 
-Among equally-spaced 2, 3, ..., and 20 knots, 15 knots gave us the least GCV value.
+Among equally-spaced 2, 3, ..., and 20 knots, 15 knots gave us the least LOOCV/GCV value.
 Thus, let's proceed with $K=15$.
 
 ```{r}
+knot_num = candid_knot_num[which.min(gcv_for_candid_knot_num)]
 knot_position = (125-95)/(knot_num+2)*1:knot_num+95
-lm_ns15_fit = lm(strontium.ratio ~ ns(age, knots=knot_position), data=fossil)
+lm_ns_cvknot_fit = lm(strontium.ratio ~ ns(age, knots=knot_position), data=fossil)
+# summary(lm_ns_cvknot_fit)
 ```
+
 ```{r, echo=FALSE}
-# summary(lm_ns15_fit)
 plot(strontium.ratio ~ age, data=fossil)
-lm_ns15_fit_pred = predict(lm_ns15_fit, pred_df_age, interval="prediction")
-lines(lm_ns15_fit_pred[,1]~pred_df_age$age, col="blue")
-lines(lm_ns15_fit_pred[,2]~pred_df_age$age)
-lines(lm_ns15_fit_pred[,3]~pred_df_age$age)
+lm_ns_cvknot_fit_pred = predict(lm_ns_cvknot_fit, pred_df_age, interval="prediction")
+lines(lm_ns_cvknot_fit_pred[,1]~pred_df_age$age, col="blue")
+lines(lm_ns_cvknot_fit_pred[,2]~pred_df_age$age)
+lines(lm_ns_cvknot_fit_pred[,3]~pred_df_age$age)
 ```
+
 ```{r}
-lm_ns15_fit_pred2 = predict(lm_ns15_fit, pred_df_age2, interval="prediction")
-print(lm_ns15_fit_pred2)
+lm_ns_cvknot_fit_pred2 = predict(lm_ns_cvknot_fit, pred_df_age2, interval="prediction")
+print(lm_ns_cvknot_fit_pred2)
 ```
 
 The above plot shows fitted curve and its 95% interval using the 15 knots.
@@ -137,7 +149,43 @@ Last part's dataframe output is for prediction interval at $x=95$, and $x=115$.
 
 ### 5-c. Smoothing spline fit
 
-Here, I will use 'mgcv' package. The 'gam' function seems that it automatically choose the number of spline using GCV.
+First of all, let me use 'smooth.spline' function in 'splines' package.
+
+```{r}
+## using smooth.spline
+candid_df = 5:20
+ss_loocv_vec = rep(0, length(candid_df))
+ss_gcv_vec = rep(0, length(candid_df))
+
+for(i in 1:length(candid_df)){
+    ss_fit_loocv = smooth.spline(fossil$age, fossil$strontium.ratio, nknots=candid_df[i], cv=TRUE)
+    ss_loocv_vec[i] = ss_fit_loocv$cv.crit
+    ss_fit_gcv = smooth.spline(fossil$age, fossil$strontium.ratio, nknots=candid_df[i], cv=FALSE)
+    ss_gcv_vec[i] = ss_fit_gcv$cv.crit
+}
+
+(candid_df[which.min(ss_loocv_vec)]) #12
+(candid_df[which.min(ss_gcv_vec)]) #12
+```
+Both LOOCV and GCV choose $nknots=12$.
+
+```{r}
+ss_fit_loocv = smooth.spline(fossil$age, fossil$strontium.ratio, nknots=candid_df[which.min(ss_loocv_vec)], cv=TRUE)
+ss_fit_gcv = smooth.spline(fossil$age, fossil$strontium.ratio, nknots=candid_df[which.min(ss_gcv_vec)], cv=FALSE)
+sum(ss_fit_gcv$lev) #eff number of parameters
+ss_fit_loocv_pred = predict(ss_fit_loocv, pred_df_age, interval="prediction", se=TRUE) #no se output
+ss_fit_gcv_pred = predict(ss_fit_gcv, pred_df_age, interval="prediction", se=TRUE) #no se output
+
+plot(strontium.ratio ~ age, data=fossil)
+lines(ss_fit_loocv_pred$y[,1] ~ ss_fit_loocv_pred$x[,1], col="blue")
+lines(ss_fit_gcv_pred$y[,1] ~ ss_fit_gcv_pred$x[,1], col="red")
+```
+
+LOOCV fit(blue) and GCV fit(red) are almost the same.
+Sadly, smooth.spline function does not offer standard error estimate.
+
+To get the se, I will use 'mgcv' package.
+The 'gam' function seems that it automatically choose the number of spline using GCV.
 The argument 'bs="cr"' indicates the smoothing spline fitting.
 
 ```{r}
@@ -148,8 +196,7 @@ ss_gam_fit
 
 ```{r, echo=FALSE}
 ss_gam_fit_pred = predict(ss_gam_fit, pred_df_age, interval="prediction", se.fit=TRUE)
-# ss_gam_fit_pred
-# ?predict.gam
+
 plot(strontium.ratio ~ age, data=fossil)
 lines(ss_gam_fit_pred$fit~pred_df_age$age, col="blue")
 lines(ss_gam_fit_pred$fit + 1.96*ss_gam_fit_pred$se.fit ~ pred_df_age$age)
@@ -157,24 +204,31 @@ lines(ss_gam_fit_pred$fit - 1.96*ss_gam_fit_pred$se.fit ~ pred_df_age$age)
 ```
 ```{r}
 ss_gam_fit_pred2 = predict(ss_gam_fit, pred_df_age2, interval="prediction", se.fit=TRUE)
-ss_gam_fit_pred2 
 data.frame(fit=ss_gam_fit_pred2$fit,
             lwr=ss_gam_fit_pred2$fit - 1.96*ss_gam_fit_pred2$se.fit,
             uwr=ss_gam_fit_pred2$fit + 1.96*ss_gam_fit_pred2$se.fit)
 ```
 
 The above plot shows fitted curve and its 95% interval.
+The 'gam' function gives us different fitted result from smooth.splines, though.
+(Perhaps something is wrong, but I could not find what it is, sadly.)
+
 If applying 1.96 as the 95% prediction intervals' z value relying on asymptotic normality,
-the prediction interval looks too narrow.
+the prediction band looks too narrow.
 Perhaps there is a better distribution to use, but let me skip to explore it here.
 
 Last part's dataframe output is for prediction interval at $x=95$, and $x=115$.
-We can expect that the interval lengths would be underestimated as well.
+I think that the interval lengths is too narrow, as well.
 
 ### 5-d. A local regression fit
 
-Again, using GCV, the 'span' argument (smoothing parameter) in 'loess' function will be selected.
-I will consider the value from 0.1 to 2.
+I will use 'loess' function in the base-R.
+Using GCV, the 'span' argument (smoothing parameter) in 'loess' function will be selected.
+
+Let me skip using 'LOOCV' here, cause the linear smoother's one term, which is weight matrix(tri-cube function's or gaussian's), depends on each $x$ value.
+As a result, it requires too many calculations to get $S_{ii}$, which is needed to get LOOCV.
+
+I will consider span values 0.1, 0.11, 0.12, ..., 2.
 
 ```{r}
 #using gcv, loess
@@ -203,7 +257,6 @@ lines(loess_fit_pred$fit - qt(0.975, loess_fit_pred$df)*loess_fit_pred$se.fit ~ 
 ```
 ```{r}
 loess_fit_pred2 = predict(loess_fit, pred_df_age2, interval="prediction", se=TRUE)
-loess_fit_pred2
 data.frame(fit=loess_fit_pred2$fit,
             lwr=loess_fit_pred2$fit - 1.96*loess_fit_pred2$se.fit,
             uwr=loess_fit_pred2$fit + 1.96*loess_fit_pred2$se.fit)
@@ -212,4 +265,4 @@ data.frame(fit=loess_fit_pred2$fit,
 Near 95, the interval seems a little broad, cause there are only a few data points in the neighborhood.
 But, the mean (point) estimation looks good.
 
-Last part's dataframe output is for prediction interval at $x=95$, and $x=115$.
+The last dataframe output is for prediction interval at $x=95$, and $x=115$.

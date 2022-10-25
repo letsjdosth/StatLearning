@@ -21,12 +21,12 @@ grid <- data.frame(
 ```
 
 Almost all over-median points are clustered at the left-bottom part.
-However, we can see that many over- and under-median points overlap in large area.
+However, we can see that many over- and under-median points overlap in large areas.
 
 
 ### 6-a. Support vector machine
 
-To fit SVM, we should pick the 'C' value in the largrangian formula, which tunes cost of constraints violation (soft margin).
+To fit SVM, we should pick the 'C' value in the lagrangian formula, which tunes the cost of constraints violation (soft margin).
 I tried values from 1 to 13, and picked 6, which has the best prediction accuracy.
 
 Then, our optimization problem gets to be
@@ -49,17 +49,18 @@ svm_fit_false_rate = sum(cut_calif$MedianOver!=svm_fit_y) / length(cut_calif$Med
 print(1 - svm_fit_false_rate) #prediction accuracy # c=6, [1] 0.7584302
 ```
 
-Still, classification performance of SVM based on accuracy is not satisfactory.
-We may try to apply a non-linear kernel to the optimization problem, which is make SVM nice in the mathematical point of view, but I would skip it here.
+Still, the classification performance of SVM based on accuracy is not satisfactory.
+We may try to apply a non-linear kernel to the optimization problem, which makes SVM nice from a mathematical point of view, but I would skip it here.
 
 
 ### 6-b. Decision tree
 
-To tuning a CART fit, only thing we should do is to select the cost function,
+To tune a CART fit, the only thing we should do is to select the cost function,
 unless we want to give weight to each data point or scale some points.
 
-I will use the Gini index for the classification tree here.
+I will use the Gini index for the cost function for a classification tree here.
 Another good option is the cross-entropy, but I will skip it.
+
 
 ```{r, warning=FALSE}
 # CART
@@ -69,7 +70,7 @@ cart_fit = rpart(MedianOver~., data=cut_calif, method="class")
 pruned_cart_fit = prune(cart_fit, cp=cart_fit$cptable[which.min(cart_fit$cptable[,"xerror"]),"CP"])
 ```
 
-Note that, in the pruning step, any nodes were deleted in our case.
+In the pruning step, no nodes were deleted in our case.
 
 ```{r, echo=FALSE}
 # print(pruned_cart_fit, digit=2)
@@ -88,15 +89,15 @@ cart_fit_false_rate = sum(cut_calif$MedianOver!=cart_fit_y)/length(cut_calif$Med
 print(1 - cart_fit_false_rate)
 ```
 
-The boundary seems of a union of retangular, which is natural for a tree.
-Even if the boundary seems so crude, prediction accuracy is higher than the SVM classifier above.
+The boundary seems to be a union of rectangular shapes, which is natural for a tree.
+Even if the boundary seems crude, prediction accuracy is higher than the SVM classifier above.
 
 ### 6-c. Random forest
 
-To tune a random-forest classifier, important tuning parameters may be the number of total trees, 
-number of variable(covariate) randomly sampled as a candidates at each split, and vote rule.
-Here, I just use a default values for 'randomForest' fuction in the 'randomForest' package.
-The number of trees is 500, the number of candid covariates are $sqrt(p)$, and voting rule is just the majority voting.
+Some important tuning parameters to tune a random-forest classifier may be the number of total trees, 
+the number of variables (covariates) randomly selected as candidates at each split, and the voting rule.
+Here, I use default values for the 'randomForest' function in the 'randomForest' package.
+The number of trees is 500, the number of candid covariates is $sqrt(p)$, and the voting rule is just the majority voting.
 
 ```{r, warning=FALSE, message=FALSE}
 #random forest
@@ -119,57 +120,58 @@ rf_fit_false_rate = sum(cut_calif$MedianOver!=rf_fit_y)/length(cut_calif$MedianO
 print(1 - rf_fit_false_rate)
 ```
 
-The accuracy is preety high, but it seems too high so that we may concern about overfitting.
-If we come back to the plot above, there are too narrow areas for each class, which makes the concern stronger.
-More number of trees might be needed.
+The accuracy is pretty high, but it seems too high, so we may be concerned about overfitting.
+If we return to the plot above, there are too narrow areas for each class, which strengthens the concern.
+We might need more trees.
 
 ### Discussion
 
-I heard that SVMs got an high-attention from the theoriests.
-One reason is that it can be naturally extended to more general Hilbert spaces setting 
-due to the optimal (fitted result) is only affected through inner product of data.
-For example, lots of research seems to be conduct by chainging inner product of a space, 
-sometimes combining RKHS, enjoying the space's good property to get a property of SVM fit.
-Not only that, the motivation is based on 'hyperplane separation theorem' having a beauty from geometry, topology, and algebra.
+I heard that SVMs got great attention from theorists.
+One reason is that SVMs can naturally extend it to a more general Hilbert spaces setting because the optimal (fitted result) is 
+only affected through the inner product of data.
+For example, lots of research seems to be conducted by changing the inner product of space, sometimes combining RKHS, 
+with enjoying the space's property to get a better SVM fit.
+The motivation is also based on the 'hyperplane separation theorem' having a beauty from geometry, topology, and algebra.
 
-Another good point is, SVMs deal with high demensional problem preety well, compared to other learning methods.
-Curse of dimensionality exists, but seems weeker for SVM.
+Another good point is that SVMs deal with high-dimensional problems better than other learning methods.
+The curse of dimensionality exists but seems weaker for SVM.
 
-Not only that, SVMs give easily interpretable analytic expression of the classification boundary.
+Not only that, SVMs give an easily interpretable analytic expression of the classification boundary.
 
 However, SVMs' performance is generally worse than other learning methods.
 That's why so many pre-stage-SVM methods are developed.
-Plus, the optimization is often very unstable, highly depending on choosing tuning parameter.
+Plus, the optimization is often very unstable, depending on choosing tuning parameters.
 These things make practitioners annoyed to use SVM in practice.
 
-Even if it seems that there isn't no research about uncertainty quantification (for example, getting standard error of a fit) about SVM,
-in general, there are just few results about asymptotic behavior and SVM fit's uncertainty.
-As a result, many people rely on bootstrap or other resampling methods, which requires SVM users to do additional works.
+Even if it seems that there is research about uncertainty quantification (for example, getting standard error of a fit) about SVM,
+in general, there are only a few results about asymptotic behavior and uncertainty of SVM fit.
+As a result, many rely on bootstrap or other resampling methods, which require SVM users to do additional work.
 
-The CART, one of many decision tree classifiers, is very intuitive when considering its analytic form and tree expression.
-It is just a way of fitting a value for each splited area.
-In addition, in general, tree algorithms do not require pre-work like normalizing, scaling, or specific pre-processing.
+The CART, one of many decision tree classifiers, is intuitive when considering its analytic form and tree expression.
+It is just a way of fitting a value for each split area.
+In addition, tree algorithms generally do not require pre-work like normalizing, scaling, or specific pre-processing.
 
-Nonetheless, generally speaking, tree algorithm's performance is bad.
-Prediction accuracy is not good compared to other learning algorithm.
+Nonetheless, generally speaking, tree algorithms' performance is terrible. 
+(Interestingly CART was better than SVM in our example, though.)
+Prediction accuracy is not good compared to other learning algorithms.
 That's why bagging and boosting are almost always needed when you want to use trees in practice.
 
-Some other problems are, sometimes spliting algorithm gets to be super-complex, requiring too much computing power.
-And generally tree algorithms are too senseitive with outliers. It is far from 'robust' algorithm.
-And it is easy to be overfitted, so we take additional step like pruning.
+Some other problems are sometimes splitting algorithm gets super-complex, requiring too much computing power.
+And tree algorithms are too sensitive to outliers. It is far from a 'robust' algorithm.
+And it is easy to be overfitted, so we take an additional step like pruning.
 
-Uncertainty quantification is ironically not bad, cause trees are almost always used with bagging or boosting.
-Bagging gives a CV-based or bootstrap-based variance estimates as a by-product, and boosting yields asymptotically good behavior by taking mean.
+Uncertainty quantification is ironically not difficult for tree algorithms cause trees are almost always used with bagging or boosting.
+Bagging gives CV-based or bootstrap-based variance estimates as a by-product, and boosting yields asymptotically good behavior by taking mean.
 This may be why some statisticians love trees.
 
-The random forest, which is tree with bagging with an additional constraint on spliting, performs well in general.
-By the reason that I said above, its fitting algorithm naturally gives its uncertainty estimates through its bagging step.
-Not only that, the random forest is easy to extend and flexible to apply.
-For example, we can use it for regression and classification. Plus, nowadays, the causal random forest has got huge attention from researchers.
+The random forest, which is averaged tree with bagging with an additional constraint on splitting, performs well in general.
+Because it is bagging trees, its fitting algorithm naturally gives uncertainty estimates through its bagging step.
+Also, the random forest is easy to extend and flexible in application.
+For example, we can use it for regression and classification. Plus, nowadays, the causal random forest has got massive attention from researchers.
 
-However, running time is super long, (with my intel i5 chip, random forest fitting for the above dataset takes more than 10 minutes) making practitioners tired.
-Generally, at least 500 bagging trees are recommended. If the number of trees are too low, the performance of random forest model gets super bad.
-But nowadays, there is a huge competitor that we cannot ignore if long fitting time is available: deep neural network classifier.
-If you do not need a uncertainty quantification, it is much better to use modern deep neural network(DNN) models to get higher prediction accuracy.
+However, the running time is super long (with my intel i5 chip, random forest fitting for the above dataset takes more than 10 minutes), making practitioners tired.
+Generally, at least 500 bagging trees are recommended. If the number of trees is too low, the performance of the random forest model gets too bad.
+It is fair to point out that there is a huge competitor we cannot ignore if a long fitting time is available: deep neural network classifier.
+If you do not need uncertainty quantification, modern deep neural network(DNN) models are much better for getting higher prediction accuracy.
 I am almost sure that if you take the same amount of time to fit both DNN and random forest, the DNN has better performance.
 

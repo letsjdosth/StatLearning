@@ -9,23 +9,24 @@ Seokjun Choi
 ### Discussion (in the head!)
 
 The motivation of GCV is to mimic the LOOCV in the ordinary linear regression setting with a shrinkage penalty.
-When $S_\lambda$ is a linear smoother of response, $tr(S_\lambda)$ can be viewed as the 'effective' degress of freedom of the linear smoother,
+When $S_\lambda$ is a linear smoother of response, $tr(S_\lambda)$ can be viewed as the 'effective' degrees of freedom of the linear smoother,
 in the sense that the trace value will be smaller as the smoothing strength parameter $\lambda$ grows.
-Note that if $\lambda=0$, $tr(S_0)$ is the exactly same as the model's degrees of freedom in the ordinary sense.
+Note that if $\lambda=0$, $tr(S_0)$ is exactly the same as the model's degrees of freedom in the ordinary sense.
 
 In general, GCV and CV are not exactly the same.
-Comparing properties of GCV with LOOCV, GCV is more robust. 
-By using the trace value instead, GCV is less sensitive to each diagonal value of $S_\lambda$, which is badly bahaving at influence points. 
-Plus, GCV have good invariance property with respect to orthogonal transformation of data (for example, rotating), while LOOCV does not.
+Comparing the properties of GCV with LOOCV, GCV is more robust. 
+By using the trace value instead, GCV is less sensitive to each diagonal value of $S_\lambda$, which is badly behaving at influence points. 
+Plus, GCV has a good invariance property for orthogonal transformations of data (for example, rotating), while LOOCV does not.
 (In detail, see Wakefield, J. (2013). Bayesian and frequentist regression methods, chapter 10)
-These features justify to use GCV rather than LOOCV when our model's smoother is a linear operator.
+These features justify using GCV rather than LOOCV when our model's smoother is a linear operator.
 
 Interestingly, the asymptotic properties of GCV and LOOCV in a linear regression setting are the same. (For example, see Shao, J. (1997).)
 So with large samples, we can expect that methods depending on GCV and LOOCV will give similar results.
+(Note that k-fold CV is different.)
 
 Obviously, GCV calculation is much simpler than LOOCV.
 Even if LOOCV has a nice formula in linear smoother cases, it needs the exact 'hat' matrix (smoothing matrix).
-But for some models above, getting the matrix requires a quite annoying computing, but getting trace value of the matrix is still relatively easy.
+But for some models above, getting the matrix requires quite annoying computing, but getting the trace value of the matrix is still relatively easy.
 
 
 
@@ -66,10 +67,11 @@ curve(coef(lm3_fit)[1]+coef(lm3_fit)[2]*x+coef(lm3_fit)[3]*x^2+coef(lm3_fit)[4]*
 curve(coef(lm4_fit)[1]+coef(lm4_fit)[2]*x+coef(lm4_fit)[3]*x^2+coef(lm4_fit)[4]*x^3+coef(lm4_fit)[5]*x^4, col="green", add=TRUE)
 ```
 
-The first-order and the second order fits seem too crude.
-The third-order and the fourth order fits are good.
-Generally, the simpler model is preferred if two model's performances are comparable.
+The first-order and the second-order fits seem too crude.
+The third-order and the fourth-order fits are good.
+Generally, the simpler model is preferred if two models' performances are comparable.
 Thus, I will choose the order-3 polynomial.
+
 
 ```{r, echo=FALSE}
 #order 3
@@ -86,7 +88,7 @@ lm3_fit_pred2 = predict(lm3_fit, pred_df_age2, interval="prediction")
 print(lm3_fit_pred2)
 ```
 
-The above plot shows fitted curve and its 95% interval.
+The above plot shows the fitted curve and its 95% interval.
 Last part's dataframe output is for prediction interval at $x=95$, and $x=115$.
 
 ### 5-b. Cubic spline fit
@@ -121,7 +123,7 @@ for(i in 1:length(candid_knot_num)){
 (candid_knot_num[which.min(gcv_for_candid_knot_num)]) #15
 ```
 
-Among equally-spaced 2, 3, ..., and 20 knots, 15 knots gave us the least LOOCV/GCV value.
+Among equally-spaced 2, 3, ..., and 20 knots, using 15 knots gave us the least LOOCV and GCV values.
 Thus, let's proceed with $K=15$.
 
 ```{r}
@@ -144,12 +146,12 @@ lm_ns_cvknot_fit_pred2 = predict(lm_ns_cvknot_fit, pred_df_age2, interval="predi
 print(lm_ns_cvknot_fit_pred2)
 ```
 
-The above plot shows fitted curve and its 95% interval using the 15 knots.
+The above plot shows the fitted curve and its 95% interval using the 15 knots.
 Last part's dataframe output is for prediction interval at $x=95$, and $x=115$.
 
 ### 5-c. Smoothing spline fit
 
-First of all, let me use 'smooth.spline' function in 'splines' package.
+First of all, let me use the 'smooth.spline' function in the 'splines' package.
 
 ```{r}
 ## using smooth.spline
@@ -167,6 +169,7 @@ for(i in 1:length(candid_df)){
 (candid_df[which.min(ss_loocv_vec)]) #12
 (candid_df[which.min(ss_gcv_vec)]) #12
 ```
+
 Both LOOCV and GCV choose $nknots=12$.
 
 ```{r}
@@ -181,11 +184,11 @@ lines(ss_fit_loocv_pred$y[,1] ~ ss_fit_loocv_pred$x[,1], col="blue")
 lines(ss_fit_gcv_pred$y[,1] ~ ss_fit_gcv_pred$x[,1], col="red")
 ```
 
-LOOCV fit(blue) and GCV fit(red) are almost the same.
-Sadly, smooth.spline function does not offer standard error estimate.
+LOOCV fit(blue) and GCV fit(red) are almost identical.
+Sadly, the 'smooth.spline' function does not offer a standard error estimate.
 
-To get the se, I will use 'mgcv' package.
-The 'gam' function seems that it automatically choose the number of spline using GCV.
+To get the SE, I will use the 'mgcv' package.
+The 'gam' function automatically chooses the number of splines using GCV.
 The argument 'bs="cr"' indicates the smoothing spline fitting.
 
 ```{r}
@@ -209,26 +212,26 @@ data.frame(fit=ss_gam_fit_pred2$fit,
             uwr=ss_gam_fit_pred2$fit + 1.96*ss_gam_fit_pred2$se.fit)
 ```
 
-The above plot shows fitted curve and its 95% interval.
-The 'gam' function gives us different fitted result from smooth.splines, though.
+The above plot shows the fitted curve and its 95% interval.
+The 'gam' function gives us a different fitted result from smooth.splines, though.
 (Perhaps something is wrong, but I could not find what it is, sadly.)
 
 If applying 1.96 as the 95% prediction intervals' z value relying on asymptotic normality,
 the prediction band looks too narrow.
-Perhaps there is a better distribution to use, but let me skip to explore it here.
+Perhaps there is a better distribution to use, but let me skip exploring it here.
 
 Last part's dataframe output is for prediction interval at $x=95$, and $x=115$.
-I think that the interval lengths is too narrow, as well.
+I think that their interval length is too narrow, as well.
 
 ### 5-d. A local regression fit
 
-I will use 'loess' function in the base-R.
-Using GCV, the 'span' argument (smoothing parameter) in 'loess' function will be selected.
+I will use the 'loess' function in the base-R.
+Using GCV, the 'span' argument (smoothing parameter) in the 'loess' function will be selected.
 
-Let me skip using 'LOOCV' here, cause the linear smoother's one term, which is weight matrix(tri-cube function's or gaussian's), depends on each $x$ value.
-As a result, it requires too many calculations to get $S_{ii}$, which is needed to get LOOCV.
+Let me skip using 'LOOCV' here, cause the linear smoother's one term, which is a (tri-cube function's or gaussian's) weight matrix, depends on each $x$ value.
+As a result, the smoothing matrix gets a huge dimension, requiring too many calculations to get $S_{ii}$, which is needed to get LOOCV.
 
-I will consider span values 0.1, 0.11, 0.12, ..., 2.
+I will consider 'span' values 0.1, 0.11, 0.12, ..., 2.
 
 ```{r}
 #using gcv, loess
@@ -262,7 +265,7 @@ data.frame(fit=loess_fit_pred2$fit,
             uwr=loess_fit_pred2$fit + 1.96*loess_fit_pred2$se.fit)
 ```
 
-Near 95, the interval seems a little broad, cause there are only a few data points in the neighborhood.
+Near 95, the interval seems a little wide cause there are only a few data points in the neighborhood.
 But, the mean (point) estimation looks good.
 
 The last dataframe output is for prediction interval at $x=95$, and $x=115$.

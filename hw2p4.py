@@ -1,3 +1,5 @@
+from time import time
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -29,7 +31,7 @@ def lasso_loss(x: np.array, y: np.array, lambda_val: int|float, fitted_beta: np.
 def l0_norm(a: np.array):
     return np.count_nonzero(a)
 
-def shooting(x: np.array, y: np.array, lambda_val: int|float, initial_beta: list, epsilon=1e-5, learning_rate=0.1):
+def shooting_full_coordinate(x: np.array, y: np.array, lambda_val: int|float, initial_beta: list, epsilon=1e-5, learning_rate=0.1):
     n = x.shape[0]
     p = x.shape[1]
     xtx = np.transpose(x)@x
@@ -76,14 +78,12 @@ def shooting(x: np.array, y: np.array, lambda_val: int|float, initial_beta: list
             # print(beta_minus>=0)
 
 
-def shooting2(x: np.array, y: np.array, lambda_val: int|float, initial_beta: list, epsilon=1e-5):
+def shooting_1coordinate(x: np.array, y: np.array, lambda_val: int|float, initial_beta: list, epsilon=1e-5):
     n = x.shape[0]
     p = x.shape[1]
     xb = x@initial_beta
 
-    beta_plus = np.array([b if b>0 else 0 for b in initial_beta])
-    beta_minus = np.array([-b if b<0 else 0 for b in initial_beta])
-    beta_tilde = np.concatenate((beta_plus, beta_minus), axis=0)
+    beta_tilde = np.array([b if b>0 else 0 for b in initial_beta] + [-b if b<0 else 0 for b in initial_beta])
     # print(beta_tilde.shape) #(2000,)
 
     num_iter = 0
@@ -110,9 +110,12 @@ def shooting2(x: np.array, y: np.array, lambda_val: int|float, initial_beta: lis
         if sum(delta**2) < epsilon:
             print("iter:", num_iter)
             return beta_tilde[0:p] - beta_tilde[p:2*p]
+        if num_iter > 1000:
+            print("it may not fit fully. iter:", num_iter)
+            return beta_tilde[0:p] - beta_tilde[p:2*p]
 
 
-def shooting3(x: np.array, y: np.array, lambda_val: int|float, initial_beta: list, epsilon=1e-5):
+def shooting_1coordinate_without_cache(x: np.array, y: np.array, lambda_val: int|float, initial_beta: list, epsilon=1e-5):
     #non cached version for shooting 3
     n = x.shape[0]
     p = x.shape[1]
@@ -149,7 +152,9 @@ def shooting3(x: np.array, y: np.array, lambda_val: int|float, initial_beta: lis
         if sum(delta**2) < epsilon:
             print("iter:", num_iter)
             return beta_plus - beta_minus
-
+        if num_iter > 10000:
+            print("it may not fit fully. iter:", num_iter)
+            return beta_plus - beta_minus
 
 
 if __name__=="__main__":
@@ -171,28 +176,33 @@ if __name__=="__main__":
     testing_average_lasso_loss_vec = []
 
     for lambda_val in lambda_candid:
-        print("lambda_val:", lambda_val)
+        start_time = time()
+        # print("lambda_val:", lambda_val)
         l0_norm_at_lambda = []
         training_quad_loss_at_lambda = []
         training_lasso_loss_at_lambda = []
         testing_quad_loss_at_lambda = []
         testing_lasso_loss_at_lambda = []
-        
-        for batch_idx in range(10): #5-cross-validation
-            test_index = [batch_idx*5+i for i in range(5)]
-            train_index = [i for i in range(batch_idx*5)] + [i for i in range(test_index[-1]+1, 50)]
+            
+        for batch_idx in range(5): #5fold-cross-validation
+            print("lambda_val:", lambda_val, " batch:", batch_idx)
+            test_index = [batch_idx*10+i for i in range(10)]
+            train_index = [i for i in range(batch_idx*10)] + [i for i in range(test_index[-1]+1, 50)]
+            # print(test_index)
+            # print(train_index)
 
             train_x_array = x_array[train_index,:]
             train_y_array = y_array[train_index]
             test_x_array = x_array[test_index,:]
             test_y_array = y_array[test_index]
 
-            beta_fit = shooting3(train_x_array, train_y_array, lambda_val, initial_beta)
+            beta_fit = shooting2(train_x_array, train_y_array, lambda_val, initial_beta)
             l0_norm_at_lambda.append(l0_norm(beta_fit))
             training_quad_loss_at_lambda.append(average_loss(train_x_array, train_y_array, beta_fit))
             training_lasso_loss_at_lambda.append(lasso_loss(train_x_array, train_y_array, lambda_val, beta_fit))
             testing_quad_loss_at_lambda.append(average_loss(test_x_array, test_y_array, beta_fit))
             testing_lasso_loss_at_lambda.append(lasso_loss(test_x_array, test_y_array, lambda_val, beta_fit))
+        
 
             # print("lambda:", lambda_val, " l0:", l0_norm(beta_fit))
             # print("average_quad_loss:", average_loss(x_array, y_array, beta_fit))
@@ -204,6 +214,7 @@ if __name__=="__main__":
         training_average_lasso_loss_vec.append(np.mean(training_lasso_loss_at_lambda))
         testing_average_quad_loss_vec.append(np.mean(testing_quad_loss_at_lambda))
         testing_average_lasso_loss_vec.append(np.mean(testing_lasso_loss_at_lambda))
+        print("sec:", round(time()-start_time,3))
 
     # print(lambda_candid)
     # print(l0_norm_vec)

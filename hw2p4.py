@@ -21,14 +21,14 @@ y_array = x_array @ beta + rv_gen.multivariate_normal(np.zeros((n)), 0.04*np.ide
 # print(y_array.shape) #(50,)
 
 
-def average_loss(x: np.array, y: np.array, fitted_beta: np.array):
+def average_loss(x: np.array, y: np.array, fitted_beta: np.array)->float:
     n = x.shape[0]
     return sum((y - x@fitted_beta)**2)**0.5 / n
 
-def lasso_loss(x: np.array, y: np.array, lambda_val: int|float, fitted_beta: np.array):
+def lasso_loss(x: np.array, y: np.array, lambda_val: int|float, fitted_beta: np.array)->float:
     return average_loss(x,y,fitted_beta) + lambda_val*sum([abs(b) for b in fitted_beta])
 
-def l0_norm(a: np.array):
+def l0_norm(a: np.array)->int:
     return np.count_nonzero(a)
 
 def shooting_full_coordinate(x: np.array, y: np.array, lambda_val: int|float, initial_beta: list, epsilon=1e-5, learning_rate=0.1):
@@ -59,23 +59,17 @@ def shooting_full_coordinate(x: np.array, y: np.array, lambda_val: int|float, in
         
         if np.isinf((sum(delta**2))**0.5): #diverge
             break
-        
-        # if num_iter%10 == 0:
-        #     print((sum(delta**2))**0.5, lasso_loss(x, y, lambda_val, new_beta_tilde[0:p]-new_beta_tilde[p:2*p]))
-        
-        
         if np.mean(delta_norm_vec[-5:]) < epsilon:
             # print("iter:", num_iter)
             return new_beta_tilde[0:p]-new_beta_tilde[p:2*p]
-        # if num_iter==5000:
-        #     # print("iter:", num_iter)
-        #     return new_beta_tilde[0:p]-new_beta_tilde[p:2*p]
+        if num_iter>5000:
+            print("it may not fit fully. iter:", num_iter)
+            return new_beta_tilde[0:p]-new_beta_tilde[p:2*p]
         else:
             beta_tilde = new_beta_tilde    
             beta_plus = new_beta_tilde[0:p]
             beta_minus = new_beta_tilde[p:2*p]
-            # print(beta_plus>=0)
-            # print(beta_minus>=0)
+
 
 
 def shooting_1coordinate(x: np.array, y: np.array, lambda_val: int|float, initial_beta: list, epsilon=1e-5):
@@ -110,7 +104,7 @@ def shooting_1coordinate(x: np.array, y: np.array, lambda_val: int|float, initia
         if sum(delta**2) < epsilon:
             print("iter:", num_iter)
             return beta_tilde[0:p] - beta_tilde[p:2*p]
-        if num_iter > 1000:
+        if num_iter > 5000:
             print("it may not fit fully. iter:", num_iter)
             return beta_tilde[0:p] - beta_tilde[p:2*p]
 
@@ -152,17 +146,13 @@ def shooting_1coordinate_without_cache(x: np.array, y: np.array, lambda_val: int
         if sum(delta**2) < epsilon:
             print("iter:", num_iter)
             return beta_plus - beta_minus
-        if num_iter > 10000:
+        if num_iter > 5000:
             print("it may not fit fully. iter:", num_iter)
             return beta_plus - beta_minus
 
 
 if __name__=="__main__":
     initial_beta = [10*rv_gen.random()-0.5 for _ in range(p)]
-    # beta_fit2 = shooting2(x_array, y_array, 0.05, initial_beta)
-    # print(l0_norm(beta_fit2))
-    # beta_fit3 = shooting3(x_array, y_array, 0.05, initial_beta)
-    # print(l0_norm(beta_fit3))
 
     lambda_candid = np.arange(0, 0.21, 0.01)
     # lambda_candid = [0, 0.05, 0.1, 0.15, 0.2]
@@ -196,7 +186,7 @@ if __name__=="__main__":
             test_x_array = x_array[test_index,:]
             test_y_array = y_array[test_index]
 
-            beta_fit = shooting2(train_x_array, train_y_array, lambda_val, initial_beta)
+            beta_fit = shooting_1coordinate(train_x_array, train_y_array, lambda_val, initial_beta)
             l0_norm_at_lambda.append(l0_norm(beta_fit))
             training_quad_loss_at_lambda.append(average_loss(train_x_array, train_y_array, beta_fit))
             training_lasso_loss_at_lambda.append(lasso_loss(train_x_array, train_y_array, lambda_val, beta_fit))
